@@ -2,8 +2,8 @@ import { App, Notice, TFile } from 'obsidian';
 import { Task } from './Task';
 
 export class VaultHelper {
-  private static BOARD_TEMPLATE_START: string = '---\n\nkanban-plugin: basic\n\n---\n\n';
-  private static BOARD_TEMPLATE_END: string = '\n%% kanban:settings\n```\n{"kanban-plugin":"basic"}\n```%%"';
+  private static BOARD_TEMPLATE_START = '---\n\nkanban-plugin: basic\n\n---\n\n';
+  private static BOARD_TEMPLATE_END = '\n%% kanban:settings\n```\n{"kanban-plugin":"basic"}\n```%%"';
 
   /**
    * Logs an error and notifies user that an error occured
@@ -47,7 +47,7 @@ export class VaultHelper {
     const projectPath = path.slice(0, path.lastIndexOf('/')); // Remove the specific sprint since files can be in old sprints
 
     for (let i = 0; i < files.length; i++) {
-      let filePath = files[i].path;
+      const filePath = files[i].path;
       if (filePath.startsWith(projectPath) && filePath.contains(id)) {
         return files[i];
       }
@@ -69,7 +69,7 @@ export class VaultHelper {
     notename: string,
     app: App
   ): Promise<TFile>[] {
-    let promisesToCreateNotes: Promise<TFile>[] = [];
+    const promisesToCreateNotes: Promise<TFile>[] = [];
     tasks.forEach((task) => {
       if (this.getFileByTaskId(path, task.id, app) == undefined) {
         promisesToCreateNotes.push(this.createTaskNote(path, task, template, notename, app));
@@ -92,7 +92,6 @@ export class VaultHelper {
     tasks: Array<Task>,
     columns: Array<string>,
     prefix: string,
-    teamLeaderMode: boolean,
     app: App
   ): Promise<void> {
     const filename = `${prefix}-Board`;
@@ -108,13 +107,9 @@ export class VaultHelper {
 
       tasks.forEach((task: Task) => {
         if (task.state === column) {
-          let file = this.getFileByTaskId(path, task.id, app);
+          const file = this.getFileByTaskId(path, task.id, app);
           if (file != undefined) {
-            if (teamLeaderMode) {
-              boardMD += `- [ ] [[${file.basename}]] \n ${task.assignedTo} \n ${task.title}\n`;
-            } else {
-              boardMD += `- [ ] [[${file.basename}]] \n ${task.title}\n`;
-            }
+            boardMD += `- [ ] [[${file.basename}]] \n**${task.sprintName}**\n_${task.assignedTo}_\n${task.title}\n`;
           }
         }
       });
@@ -134,51 +129,22 @@ export class VaultHelper {
     notename: string,
     app: App
   ): Promise<TFile> {
-    let filename = notename
+    const filename = notename
       .replace(/{{TASK_ID}}/g, task.id)
-      .replace(/{{TASK_STATE}}/g, task.state)
-      .replace(/{{TASK_TYPE}}/g, task.type.replace(/ /g, ''))
+      .replace(/{{TASK_STATE}}/g, task.sprintName)
+      .replace(/{{TASK_SPRINT}/g, task.state)
       .replace(/{{TASK_ASSIGNEDTO}}/g, task.assignedTo);
 
     const filepath = path + `/${filename}.md`;
 
-    let content = template
+    const content = template
       .replace(/{{TASK_ID}}/g, task.id)
       .replace(/{{TASK_TITLE}}/g, task.title)
       .replace(/{{TASK_STATE}}/g, task.state)
-      .replace(/{{TASK_TYPE}}/g, task.type.replace(/ /g, ''))
+      .replace(/{{TASK_SPRINT}}/g, task.sprintName)
       .replace(/{{TASK_ASSIGNEDTO}}/g, task.assignedTo)
+      .replace(/{{TASK_DESCRIPTION}}/g, task.desc)
       .replace(/{{TASK_LINK}}/g, task.link);
-
-    if (task.dueDate != null) {
-      content = content.replace(/{{TASK_DUEDATE}}/g, task.dueDate);
-    } else {
-      content = content.replace(/{{TASK_DUEDATE}}/g, '');
-    }
-
-    if (task.tags != null) {
-      content = content.replace(/{{TASK_TAGS}}/g, task.tags);
-    } else {
-      content = content.replace(/{{TASK_TAGS}}/g, '');
-    }
-
-    if (task.desc != null) {
-      content = content.replace(/{{TASK_DESCRIPTION}}/g, task.desc);
-    } else {
-      content = content.replace(/{{TASK_DESCRIPTION}}/g, '');
-    }
-
-    if (task.criteria != null) {
-      content = content.replace(/{{TASK_CRITERIA}}/g, task.criteria);
-    } else {
-      content = content.replace(/{{TASK_CRITERIA}}/g, '');
-    }
-
-    if (task.testScenarios != null) {
-      content = content.replace(/{{TASK_TESTS}}/g, task.testScenarios);
-    } else {
-      content = content.replace(/{{TASK_TESTS}}/g, '');
-    }
 
     return app.vault.create(filepath, content);
   }

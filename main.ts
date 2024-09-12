@@ -1,30 +1,23 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import { AzureDevopsClient, AzureDevopsSettings, AZURE_DEVOPS_DEFAULT_SETTINGS } from 'src/Clients/AzureDevopsClient';
+// import { AzureDevopsClient, AzureDevopsSettings, AZURE_DEVOPS_DEFAULT_SETTINGS } from 'src/Clients/AzureDevopsClient';
 import { ITfsClient } from './src/Clients/ITfsClient';
 import { JiraClient, JiraSettings, JIRA_DEFAULT_SETTINGS } from './src/Clients/JiraClient';
 
 export interface AgileTaskNotesSettings {
-  selectedTfsClient: string;
   targetFolder: string;
   noteTemplate: string;
   noteName: string;
   intervalMinutes: number;
-  createKanban: boolean;
-  teamLeaderMode: boolean;
-  azureDevopsSettings: AzureDevopsSettings;
   jiraSettings: JiraSettings;
 }
 
 const DEFAULT_SETTINGS: AgileTaskNotesSettings = {
-  selectedTfsClient: 'AzureDevops',
   targetFolder: '',
   noteTemplate:
-    '# {{TASK_TITLE}}\n#{{TASK_TYPE}}\n\nid: {{TASK_ID}}\nstate: {{TASK_STATE}}\nAssignedTo: {{TASK_ASSIGNEDTO}}\n\nLink: {{TASK_LINK}}\n\n{{TASK_DESCRIPTION}}\n\n#todo:\n- [ ] Create todo list\n- [ ] \n\n## Notes:\n',
-  noteName: '{{TASK_TYPE}} - {{TASK_ID}}',
+    '# {{TASK_TITLE}}\n\nid: {{TASK_ID}}\nstate: {{TASK_STATE}}\nSprint: {{TASK_SPRINT}}\nAssignedTo: {{TASK_ASSIGNEDTO}}\n\nLink: {{TASK_LINK}}\n\n{{TASK_DESCRIPTION}}\n\n#todo:\n- [ ] Create todo list\n- [ ] \n\n## Notes:\n',
+  noteName: '{{TASK_ID}}',
   intervalMinutes: 0,
-  createKanban: true,
-  teamLeaderMode: false,
-  azureDevopsSettings: AZURE_DEVOPS_DEFAULT_SETTINGS,
+  // azureDevopsSettings: AZURE_DEVOPS_DEFAULT_SETTINGS,
   jiraSettings: JIRA_DEFAULT_SETTINGS,
 };
 
@@ -35,25 +28,25 @@ export default class AgileTaskNotesPlugin extends Plugin {
 
   async onload() {
     // Add TFS backend implmentations
-    const azureDevopsClient: ITfsClient = new AzureDevopsClient(this.app);
+    // const azureDevopsClient: ITfsClient = new AzureDevopsClient(this.app);
     const jiraClient: ITfsClient = new JiraClient(this.app);
 
-    this.tfsClientImplementations[azureDevopsClient.clientName] = azureDevopsClient;
+    // this.tfsClientImplementations[azureDevopsClient.clientName] = azureDevopsClient;
     this.tfsClientImplementations[jiraClient.clientName] = jiraClient;
 
     await this.loadSettings();
 
     // This creates an icon in the left ribbon for updating boards.
-    this.addRibbonIcon('dice', 'Update TFS Tasks', () => {
-      this.tfsClientImplementations[this.settings.selectedTfsClient].update(this.settings);
+    this.addRibbonIcon('dice', 'Update Jira Tasks', () => {
+      this.tfsClientImplementations[jiraClient.clientName].update(this.settings);
       new Notice('Updated current tasks successfully!');
     });
 
     this.addCommand({
       id: 'update-tfs-tasks',
-      name: 'Update TFS Tasks',
+      name: 'Update Jira Tasks',
       callback: () => {
-        this.tfsClientImplementations[this.settings.selectedTfsClient].update(this.settings);
+        this.tfsClientImplementations[jiraClient.clientName].update(this.settings);
         new Notice('Updated current tasks successfully!');
       },
     });
@@ -63,7 +56,7 @@ export default class AgileTaskNotesPlugin extends Plugin {
     if (this.settings.intervalMinutes > 0) {
       this.registerInterval(
         window.setInterval(
-          () => this.tfsClientImplementations[this.settings.selectedTfsClient].update(this.settings),
+          () => this.tfsClientImplementations[jiraClient.clientName].update(this.settings),
           this.settings.intervalMinutes * 60000
         )
       );
@@ -92,32 +85,6 @@ export class AgileTaskNotesPluginSettingTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    new Setting(containerEl)
-      .setName('Backend TFS')
-      .setDesc('The type of TFS you use.')
-      .addDropdown((dropdown) => {
-        for (const client in plugin.tfsClientImplementations) {
-          dropdown.addOption(client, client);
-        }
-        dropdown.setValue(plugin.settings.selectedTfsClient).onChange(async (value) => {
-          plugin.settings.selectedTfsClient = value;
-          await plugin.saveSettings();
-          this.display();
-        });
-      });
-
-    new Setting(containerEl)
-      .setName('Team Leader Mode')
-      .setDesc('Pulls tasks of entire team and shows usernames in generated Kanban board. (ignores username list)')
-      .addToggle((toggle) =>
-        toggle.setValue(plugin.settings.teamLeaderMode).onChange(async (value) => {
-          plugin.settings.teamLeaderMode = value;
-          await plugin.saveSettings();
-        })
-      );
-
-    plugin.tfsClientImplementations[plugin.settings.selectedTfsClient].setupSettings(containerEl, plugin, this);
-
     containerEl.createEl('h2', { text: 'Vault Settings' });
 
     new Setting(containerEl)
@@ -136,7 +103,7 @@ export class AgileTaskNotesPluginSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('Inital Task Content')
       .setDesc(
-        'Set the inital content for each new task note. Available variables: {{TASK_ID}}, {{TASK_TITLE}}, {{TASK_TYPE}}, {{TASK_STATE}}, {{TASK_ASSIGNEDTO}}, {{TASK_LINK}}, {{TASK_DESCRIPTION}} Only For Azure: {{TASK_DUEDATE}} {{TASK_TAGS}} {{TASK_CRITERIA}} {{TASK_TESTS}}'
+        'Set the inital content for each new task note. Available variables: {{TASK_ID}}, {{TASK_TITLE}}, {{TASK_STATE}}, {{TASK_ASSIGNEDTO}}, {{TASK_LINK}}, {{TASK_DESCRIPTION}} Only For Azure: {{TASK_DUEDATE}} {{TASK_TAGS}} {{TASK_CRITERIA}} {{TASK_TESTS}}'
       )
       .addTextArea((text) => {
         text
@@ -156,11 +123,11 @@ export class AgileTaskNotesPluginSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('Note Name')
       .setDesc(
-        'Set the format of the file name for each task note. Available variables: {{TASK_ID}}, {{TASK_TYPE}}, {{TASK_STATE}}, {{TASK_ASSIGNEDTO}}'
+        'Set the format of the file name for each task note. Available variables: {{TASK_ID}}, {{TASK_STATE}}, {{TASK_ASSIGNEDTO}}'
       )
       .addText((text) =>
         text
-          .setPlaceholder('{{TASK_TYPE}} - {{TASK_ID}}')
+          .setPlaceholder('{{TASK_ID}}')
           .setValue(plugin.settings.noteName)
           .onChange(async (value) => {
             plugin.settings.noteName = value;
@@ -184,15 +151,24 @@ export class AgileTaskNotesPluginSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Create Kanban board?')
+      .setName('Usernames')
       .setDesc(
-        'Should a Kanban board be generated for the current sprint (requires the Kanban board plugin in addition to this one)'
+        'A comma-separated list of usernames you want the tasks of. Simply put your username if you only need your own.'
       )
-      .addToggle((toggle) =>
-        toggle.setValue(plugin.settings.createKanban).onChange(async (value) => {
-          plugin.settings.createKanban = value;
-          await plugin.saveSettings();
-        })
-      );
+      .addTextArea((text) => {
+        text
+          .setPlaceholder('Enter usernames')
+          .setValue(plugin.settings.jiraSettings.usernames)
+          .onChange(async (value) => {
+            try {
+              plugin.settings.jiraSettings.usernames = value;
+              await this.plugin.saveSettings();
+            } catch (e) {
+              return false;
+            }
+          });
+        text.inputEl.rows = 8;
+        text.inputEl.cols = 50;
+      });
   }
 }
